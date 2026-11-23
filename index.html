@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Command Center — Live</title>
+<style>
+  :root {
+    --bg: #05060f;
+    --cyan: #4df0ff;
+    --violet: #a78bfa;
+    --lime: #7CFFB2;
+    --txt: #e8ecff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+  #net { position: fixed; inset: 0; z-index: 0; }
+  .blob {
+    position: fixed; border-radius: 50%; filter: blur(90px); opacity: .55;
+    z-index: 0; pointer-events: none; mix-blend-mode: screen;
+  }
+  .b1 { width: 52vw; height: 52vw; background: #0ea5e9; top: -18vw; left: -10vw; animation: drift1 18s ease-in-out infinite alternate; }
+  .b2 { width: 46vw; height: 46vw; background: #7c3aed; bottom: -16vw; right: -8vw; animation: drift2 22s ease-in-out infinite alternate; }
+  .b3 { width: 34vw; height: 34vw; background: #10b981; top: 55%; left: 45%; opacity: .28; animation: drift3 26s ease-in-out infinite alternate; }
+  @keyframes drift1 { to { transform: translate(14vw, 10vh) scale(1.15); } }
+  @keyframes drift2 { to { transform: translate(-12vw, -8vh) scale(1.1); } }
+  @keyframes drift3 { to { transform: translate(-10vw, -14vh) scale(1.25); } }
+
+  .wrap {
+    position: relative; z-index: 2; height: 100%;
+    display: flex; flex-direction: column;
+    padding: 26px 34px 22px;
+    gap: 18px;
+  }
+
+  /* HUD corners */
+  .corner { position: fixed; width: 54px; height: 54px; border: 2px solid rgba(77,240,255,.4); z-index: 3; pointer-events: none; }
+  .c1 { top: 14px; left: 14px; border-right: 0; border-bottom: 0; }
+  .c2 { top: 14px; right: 14px; border-left: 0; border-bottom: 0; }
+  .c3 { bottom: 14px; left: 14px; border-right: 0; border-top: 0; }
+  .c4 { bottom: 14px; right: 14px; border-left: 0; border-top: 0; }
+
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .bolt {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    display: grid; place-items: center; font-size: 22px;
+    box-shadow: 0 0 28px rgba(77,240,255,.55);
+    animation: pulseGlow 2.4s ease-in-out infinite;
+  }
+  @keyframes pulseGlow {
+    0%,100% { box-shadow: 0 0 22px rgba(77,240,255,.45); }
+    50% { box-shadow: 0 0 44px rgba(167,139,250,.75); }
+  }
+  h1 {
+    font-size: clamp(20px, 2.2vw, 30px); font-weight: 800; letter-spacing: .18em;
+    background: linear-gradient(90deg, #fff, var(--cyan) 45%, var(--violet));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    text-transform: uppercase;
+  }
+  .sub { font-size: 12.5px; letter-spacing: .26em; color: rgba(232,236,255,.5); text-transform: uppercase; margin-top: 4px; }
+  .clock { text-align: right; }
+  .clock .t { font-size: clamp(26px, 3vw, 40px); font-weight: 300; letter-spacing: .08em; font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 0 26px rgba(77,240,255,.45); }
+  .clock .d { font-size: 11.5px; letter-spacing: .22em; color: rgba(232,236,255,.45); text-transform: uppercase; }
+
+  .grid { flex: 1; display: grid; grid-template-columns: 1.25fr .95fr; gap: 18px; min-height: 0; }
+  .col { display: flex; flex-direction: column; gap: 18px; min-height: 0; }
+
+  .card {
+    background: linear-gradient(160deg, rgba(255,255,255,.055), rgba(255,255,255,.015));
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 16px; padding: 18px 20px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    position: relative; overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .card::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(600px circle at var(--mx, 50%) var(--my, 0%), rgba(77,240,255,.10), transparent 42%);
+    pointer-events: none; transition: background .18s;
+  }
+  .card h2 {
+    font-size: 11px; letter-spacing: .24em; text-transform: uppercase;
+    color: rgba(232,236,255,.55); font-weight: 700; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .card h2::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 12px var(--cyan); }
+
+  .profile { display: flex; gap: 18px; align-items: center; }
+  .avatar-ring { position: relative; width: 96px; height: 96px; flex: 0 0 96px; }
+  .avatar-ring img {
+    width: 96px; height: 96px; border-radius: 22px; object-fit: cover;
+    border: 2px solid rgba(77,240,255,.55); box-shadow: 0 0 34px rgba(77,240,255,.35);
+  }
+  .avatar-ring::before {
+    content: ""; position: absolute; inset: -7px; border-radius: 28px;
+    border: 2px dashed rgba(167,139,250,.55);
+    animation: spin 14s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pname { font-size: 24px; font-weight: 800; letter-spacing: .02em; }
+  .plogin { color: var(--cyan); font-size: 13px; letter-spacing: .08em; margin-top: 2px; }
+  .pbio { color: rgba(232,236,255,.55); font-size: 12.5px; margin-top: 8px; }
+  .tags { display: flex; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
+  .tag {
+    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    padding: 5px 9px; border-radius: 7px;
+    background: rgba(77,240,255,.10); border: 1px solid rgba(77,240,255,.28); color: #bff9ff;
+  }
+
+  .servers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .srv {
+    display: flex; align-items: center; gap: 11px;
+    padding: 11px 13px; border-radius: 11px;
+    background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07);
+    transition: transform .18s, border-color .18s, background .18s;
+  }
+  .srv:hover { transform: translateY(-3px); border-color: rgba(124,255,178,.5); background: rgba(124,255,178,.07); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 12px var(--lime); animation: blink 1.9s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  .sname { font-size: 13px; font-weight: 600; letter-spacing: .03em; }
+  .scount { margin-left: auto; font-size: 10px; color: rgba(232,236,255,.4); letter-spacing: .1em; }
+
+  .repos { display: flex; flex-direction: column; gap: 10px; }
+  .repo {
+    padding: 13px 15px; border-radius: 11px;
+    background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07);
+    transition: transform .18s, border-color .18s;
+  }
+  .repo:hover { transform: translateX(4px); border-color: rgba(167,139,250,.55); }
+  .rname { font-size: 14px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+  .badge { font-size: 9px; letter-spacing: .14em; padding: 3px 6px; border-radius: 5px; text-transform: uppercase; }
+  .priv { background: rgba(255,196,84,.13); color: #ffd58a; border: 1px solid rgba(255,196,84,.3); }
+  .pub { background: rgba(124,255,178,.13); color: #a9ffcf; border: 1px solid rgba(124,255,178,.3); }
+  .rdesc { font-size: 11.5px; color: rgba(232,236,255,.45); margin-top: 5px; }
+  .rmeta { font-size: 10.5px; color: rgba(232,236,255,.35); margin-top: 7px; letter-spacing: .06em; display: flex; gap: 14px; }
+
+  .term {
+    flex: 1; min-height: 0;
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    font-size: 12.5px; line-height: 1.85;
+    overflow: hidden;
+  }
+  .term .line { opacity: 0; animation: fadeIn .35s forwards; }
+  .term .ok { color: var(--lime); }
+  .term .dim { color: rgba(232,236,255,.4); }
+  .term .cy { color: var(--cyan); }
+  .term .vi { color: var(--violet); }
+  .term .cursor { display: inline-block; width: 8px; height: 15px; background: var(--cyan); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  footer { display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: rgba(232,236,255,.32); }
+  .live { display: flex; align-items: center; gap: 8px; color: var(--lime); }
+  .live .dot { animation-duration: 1.2s; }
+
+  /* click ripple + burst */
+  .ripple {
+    position: fixed; border-radius: 50%; pointer-events: none; z-index: 5;
+    border: 2px solid rgba(77,240,255,.8);
+    transform: translate(-50%, -50%) scale(0);
+    animation: rip .65s ease-out forwards;
+  }
+  @keyframes rip { to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    .wrap { height: auto; }
+    .grid { grid-template-columns: 1fr; }
+    .servers { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<canvas id="net"></canvas>
+<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+<div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="bolt">⚡</div>
+      <div>
+        <h1>AI Command Center</h1>
+        <div class="sub">built live by opencode · deepseek v4.1 flash</div>
+      </div>
+    </div>
+    <div class="clock">
+      <div class="t" id="clock">--:--:--</div>
+      <div class="d" id="date">—</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <div class="card">
+        <h2>Identity · verified</h2>
+        <div class="profile">
+          <div class="avatar-ring"><img src="https://avatars.githubusercontent.com/u/278287522?v=4&s=200" alt="avatar" /></div>
+          <div>
+            <div class="pname">Anuj Tripathi</div>
+            <div class="plogin">@anujaryson1-pixel</div>
+            <div class="pbio">AI developer · Aryson Technology · Noida</div>
+            <div class="tags">
+              <span class="tag">github pat · live</span>
+              <span class="tag">2 repos</span>
+              <span class="tag">id 278287522</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>MCP mesh · 6 online</h2>
+        <div class="servers">
+          <div class="srv"><span class="dot"></span><span class="sname">github</span><span class="scount">46 tools</span></div>
+          <div class="srv"><span class="dot"></span><span class="sname">browser</span><span class="scount">chrome</span></div>
+          <div class="srv"><span class="dot"></span><span class="sname">playwright</span><span class="scount">25 tools</span></div>
+          <div class="srv"><span class="dot"></span><span class="sname">filesystem</span><span class="scount">16 tools</span></div>
+          <div class="srv"><span class="dot"></span><span class="sname">postgres</span><span class="scount">13 tools</span></div>
+          <div class="srv"><span class="dot"></span><span class="sname">fetch</span><span class="scount">1 tool</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1; min-height:0;">
+        <h2>Repositories · pulled live</h2>
+        <div class="repos">
+          <div class="repo">
+            <div class="rname">Piko.ai <span class="badge priv">private</span></div>
+            <div class="rdesc">PIKO AI</div>
+            <div class="rmeta"><span>● JavaScript</span><span>★ 1</span><span>updated 3 nov 2026</span></div>
+          </div>
+          <div class="repo">
+            <div class="rname">pika <span class="badge pub">public</span></div>
+            <div class="rdesc">for the student</div>
+            <div class="rmeta"><span>● HTML</span><span>★ 0</span><span>created 9 jun 2026</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card term">
+        <h2>Boot sequence</h2>
+        <div id="lines"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>◈ data / s3 → sharepoint migration test set · 4,986 files · 10.84 gb</span>
+    <span class="live"><span class="dot"></span> live · click anywhere</span>
+  </footer>
+</div>
+
+<script>
+/* ---------- clock ---------- */
+const days = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+function tick() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  document.getElementById('clock').textContent = p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  document.getElementById('date').textContent = days[d.getDay()] + ' · ' + p(d.getDate()) + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+}
+tick(); setInterval(tick, 1000);
+
+/* ---------- terminal typewriter ---------- */
+const script = [
+  ['> initializing opencode runtime', 'dim'],
+  ['> handshake mcp://github ............ ', 'dim'],
+  ['  auth ok · pat verified', 'ok'],
+  ['> handshake mcp://browser ........... ', 'dim'],
+  ['  chrome extension paired', 'ok'],
+  ['> handshake mcp://playwright ........ ', 'dim'],
+  ['  headless ready', 'ok'],
+  ['> fetching profile anujaryson1-pixel ', 'dim'],
+  ['  resolved · anuj tripathi · noida', 'cy'],
+  ['> loading repositories ', 'dim'],
+  ['  Piko.ai  [private]  javascript', 'vi'],
+  ['  pika     [public]   html', 'vi'],
+  ['> mounting interface ', 'dim'],
+  ['  ✓ all systems nominal', 'ok'],
+  ['> _', 'cy']
+];
+const linesEl = document.getElementById('lines');
+let li = 0;
+function typeLine() {
+  if (li >= script.length) {
+    const c = document.createElement('span');
+    c.className = 'cursor';
+    linesEl.appendChild(c);
+    return;
+  }
+  const [text, cls] = script[li++];
+  const div = document.createElement('div');
+  div.className = 'line ' + cls;
+  linesEl.appendChild(div);
+  let i = 0;
+  const speed = 12 + Math.random() * 22;
+  (function step() {
+    div.textContent = text.slice(0, ++i);
+    if (i < text.length) setTimeout(step, speed);
+    else setTimeout(typeLine, 260);
+  })();
+}
+setTimeout(typeLine, 450);
+
+/* ---------- particle network ---------- */
+const cv = document.getElementById('net');
+const ctx = cv.getContext('2d');
+let W, H, parts = [], mouse = { x: -999, y: -999 };
+function resize() {
+  W = cv.width = innerWidth;
+  H = cv.height = innerHeight;
+  const count = Math.min(150, Math.floor((W * H) / 13000));
+  parts = Array.from({ length: count }, () => ({
+    x: Math.random() * W, y: Math.random() * H,
+    vx: (Math.random() - .5) * .42, vy: (Math.random() - .5) * .42,
+    r: Math.random() * 1.8 + .7,
+    hue: Math.random() < .5 ? 188 : 265
+  }));
+}
+addEventListener('resize', resize); resize();
+
+const bursts = [];
+function burst(x, y) {
+  const colors = ['#4df0ff', '#a78bfa', '#7CFFB2', '#ffffff'];
+  for (let i = 0; i < 34; i++) {
+    const a = (Math.PI * 2 * i) / 34 + Math.random() * .3;
+    const sp = 2 + Math.random() * 6;
+    bursts.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 1, c: colors[(Math.random() * colors.length) | 0], s: 1.5 + Math.random() * 2.2
+    });
+  }
+}
+
+function frame() {
+  ctx.clearRect(0, 0, W, H);
+
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0 || p.x > W) p.vx *= -1;
+    if (p.y < 0 || p.y > H) p.vy *= -1;
+
+    const dx = p.x - mouse.x, dy = p.y - mouse.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < 24000) {
+      const f = (24000 - d2) / 24000;
+      p.x += (dx / Math.sqrt(d2 + 1)) * f * 2.2;
+      p.y += (dy / Math.sqrt(d2 + 1)) * f * 2.2;
+    }
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, 6.2832);
+    ctx.fillStyle = 'hsla(' + p.hue + ',100%,70%,.85)';
+    ctx.fill();
+
+    for (let j = i + 1; j < parts.length; j++) {
+      const q = parts[j];
+      const ax = p.x - q.x, ay = p.y - q.y;
+      const dist = ax * ax + ay * ay;
+      if (dist < 17000) {
+        const a = (1 - dist / 17000) * .34;
+        ctx.strokeStyle = 'rgba(120,200,255,' + a.toFixed(3) + ')';
+        ctx.lineWidth = .7;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+      }
+    }
+  }
+
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    const b = bursts[i];
+    b.x += b.vx; b.y += b.vy; b.vy += .07; b.vx *= .985; b.vy *= .985;
+    b.life -= .016;
+    if (b.life <= 0) { bursts.splice(i, 1); continue; }
+    ctx.globalAlpha = Math.max(b.life, 0);
+    ctx.fillStyle = b.c;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.s * b.life, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  requestAnimationFrame(frame);
+}
+frame();
+
+/* ---------- interactions ---------- */
+addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+addEventListener('click', e => {
+  burst(e.clientX, e.clientY);
+  const rip = document.createElement('div');
+  rip.className = 'ripple';
+  const size = 260;
+  rip.style.width = rip.style.height = size + 'px';
+  rip.style.left = e.clientX + 'px';
+  rip.style.top = e.clientY + 'px';
+  document.body.appendChild(rip);
+  setTimeout(() => rip.remove(), 700);
+});
+
+document.querySelectorAll('.card').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+    card.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  });
+});
+</script>
+</body>
+</html>
